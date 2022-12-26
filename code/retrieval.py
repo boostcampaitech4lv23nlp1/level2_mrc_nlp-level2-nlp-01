@@ -19,6 +19,7 @@ def timer(name):
     yield
     print(f"[{name}] done in {time.time() - t0:.3f} s")
 
+
 class SparseRetrieval:
     def __init__(
         self,
@@ -374,6 +375,7 @@ class SparseRetrieval:
         D, I = self.indexer.search(q_embs, k)
 
         return D.tolist(), I.tolist()
+
 
 if __name__ == "__main__":
 

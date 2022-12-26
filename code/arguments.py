@@ -9,9 +9,15 @@ class ModelArguments:
     """
 
     model_name_or_path: str = field(
-        default="klue/bert-base",
+        default="klue/roberta-large",
         metadata={
             "help": "Path to pretrained model or model identifier from huggingface.co/models"
+        },
+    )
+    tokenizer_name: Optional[str] = field(
+        default="klue/roberta-large",
+        metadata={
+            "help": "Pretrained tokenizer name or path if not the same as model_name"
         },
     )
     config_name: Optional[str] = field(
@@ -20,12 +26,7 @@ class ModelArguments:
             "help": "Pretrained config name or path if not the same as model_name"
         },
     )
-    tokenizer_name: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "Pretrained tokenizer name or path if not the same as model_name"
-        },
-    )
+    
 
 
 @dataclass
@@ -35,7 +36,7 @@ class DataTrainingArguments:
     """
 
     dataset_name: Optional[str] = field(
-        default="~/input/data/train_dataset/train/",
+        default="../data/train_dataset",
         metadata={"help": "The name of the dataset to use."},
     )
     overwrite_cache: bool = field(
