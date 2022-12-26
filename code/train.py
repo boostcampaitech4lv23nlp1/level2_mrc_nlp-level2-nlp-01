@@ -4,6 +4,7 @@ import sys
 from typing import NoReturn
 import shutil
 
+from omegaconf import OmegaConf
 from arguments import DataTrainingArguments, ModelArguments
 from datasets import DatasetDict, load_from_disk, load_metric
 from trainer_qa import QuestionAnsweringTrainer
@@ -23,24 +24,52 @@ from preprocess import prepare_train_features, prepare_validation_features
 logger = logging.getLogger(__name__)
 
 
-def main(**kwargs):
+def main(cfg):
+    output_dir = cfg.train.path.output_dir
+    dataset_name = cfg.train.path.dataset_name
+    delete_exist_output = cfg.train.path.delete_exist_output
+
+    do_train = cfg.train.stage.do_train
+    do_eval = cfg.train.stage.do_eval
+    overwrite_cache = cfg.train.stage.overwrite_cache
+
+    num_train_epochs = cfg.train.model.num_train_epochs
+    per_device_train_batch_size = cfg.train.model.per_device_train_batch_size
+    learning_rate = cfg.train.model.learning_rate
+    warmup_steps = cfg.train.model.warmup_steps
+    weight_decay = cfg.train.model.weight_decay
+
     # 가능한 arguments 들은 ./arguments.py 나 transformer package 안의 src/transformers/training_args.py 에서 확인 가능합니다.
     # --help flag 를 실행시켜서 확인할 수 도 있습니다.
-
     parser = HfArgumentParser(
-        (ModelArguments, DataTrainingArguments, TrainingArguments)
+        (
+            ModelArguments, 
+            DataTrainingArguments, 
+            TrainingArguments
+        )
     )
+    if delete_exist_output is True:
+        if os.path.exists(output_dir):
+            flag = input(f"정말 {output_dir} 내의 모든 파일을 삭제하시겠습니까? (yes) >> ")
+            if flag == 'yes':
+                shutil.rmtree(output_dir)
+            else:
+                print('기존 output을 삭제하지 않습니다.')
 
-    if kwargs['delete_exist_output'] is True:
-        if os.path.exists('../output'):
-            print("output file exists!!!")
-            shutil.rmtree('../output')
-    model_args, data_args, training_args = parser.parse_args_into_dataclasses(['--output_dir', '../output'])
+    model_args, data_args, training_args = parser.parse_args_into_dataclasses(['--output_dir', output_dir])
     print(model_args.model_name_or_path)
 
-    # [참고] argument를 manual하게 수정하고 싶은 경우에 아래와 같은 방식을 사용할 수 있습니다
-    # training_args.per_device_train_batch_size = 4
-    # print(training_args.per_device_train_batch_size)
+    # hyper parameter 설정
+    data_args.dataset_name = dataset_name
+    data_args.overwrite_cache = overwrite_cache
+
+    training_args.do_train = do_train
+    training_args.do_eval = do_eval
+    training_args.num_train_epochs = num_train_epochs
+    training_args.per_device_train_batch_size = per_device_train_batch_size
+    training_args.learning_rate = learning_rate
+    training_args.warmup_steps = warmup_steps
+    training_args.weight_decay = weight_decay
 
     print(f"model is from {model_args.model_name_or_path}")
     print(f"data is from {data_args.dataset_name}")
@@ -92,8 +121,6 @@ def main(**kwargs):
     )
 
     # do_train mrc model 혹은 do_eval mrc model
-    training_args.do_train = kwargs['do_train']
-    training_args.do_eval = kwargs['do_eval']
     if training_args.do_train or training_args.do_eval:
         run_mrc(data_args, training_args, model_args, datasets, tokenizer, model)
 
@@ -254,10 +281,8 @@ def run_mrc(
 
 
 if __name__ == "__main__":
-    kwargs = {
-        'delete_exist_output': True,
-        'do_train': True,
-        'do_eval': False,
-    }
+    # configuation
+    config_name = 'base_config'
+    cfg = OmegaConf.load(f'./conf/{config_name}.yaml')
 
-    main(**kwargs)
+    main(cfg)
