@@ -9,8 +9,8 @@ class ModelArguments:
     """
 
     model_name_or_path: str = field(
-        default="klue/bert-base",
-        # default="paust/pko-t5-small",
+        # default="klue/bert-base",
+        default="paust/pko-t5-small",
         metadata={
             "help": "Path to pretrained model or model identifier from huggingface.co/models"
         },
@@ -92,15 +92,3 @@ class DataTrainingArguments:
         default=False, metadata={"help": "Whether to build with faiss"}
     )
     
-
-@dataclass
-class GenerationArguments:
-    """
-    Arguments for training and eval.
-    """
-    generation_mode: bool = field(
-        default=True, metadata={"help": "Whether to use generation based MRC"}
-    )
-    num_beams: int = field(
-        default=2, metadata={"help" : "beam size to generate answer"}
-    )
