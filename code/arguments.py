@@ -10,7 +10,7 @@ class ModelArguments:
 
     model_name_or_path: str = field(
         # default="klue/bert-base",
-        default="paust/pko-t5-small",
+        default="paust/pko-t5-base",
         metadata={
             "help": "Path to pretrained model or model identifier from huggingface.co/models"
         },
@@ -91,4 +91,3 @@ class DataTrainingArguments:
     use_faiss: bool = field(
         default=False, metadata={"help": "Whether to build with faiss"}
     )
-    
