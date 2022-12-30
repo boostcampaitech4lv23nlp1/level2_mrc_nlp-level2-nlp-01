@@ -432,7 +432,7 @@ def run_mrc_based_generation(
         all_predictions = collections.OrderedDict()
         for i in tqdm(range(len(org_dataset))):
             sample = org_dataset[i]    
-            inputs = f'question: {sample["question"]}  context: {sample["context"]} </s>'
+            inputs = f'question: {sample["question"]} </s> context: {sample["context"]} </s>'
             sample = tokenizer(inputs, max_length=cfg.reader.generation.max_source_length, padding=cfg.reader.generation.padding, truncation=True, return_tensors='pt')
             sample = sample.to("cuda:0")
             outputs = model.generate(**sample, max_length=cfg.reader.generation.max_target_length, num_beams=cfg.reader.generation.num_beams)
