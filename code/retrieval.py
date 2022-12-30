@@ -542,6 +542,7 @@ if __name__ == "__main__":
             context_path=context_path,
         )
 
+    # TODO: 코드 리뷰
     query = "대통령을 포함한 미국의 행정부 견제권을 갖는 국가 기관은?"
 
     if use_faiss:
