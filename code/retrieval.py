@@ -385,7 +385,7 @@ class BM25:
         data_path: Optional[str] = "/opt/ml/input/data/",
         context_path: Optional[str] = "wikipedia_documents.json",
     ):# -> NoReturn:
-
+        self.tokenize_fn = tokenize_fn
         self.data_path = data_path
         with open(os.path.join(data_path, context_path), "r", encoding="utf-8") as f:
             wiki = json.load(f)
@@ -395,7 +395,7 @@ class BM25:
         )  # set 은 매번 순서가 바뀌므로
         print(f"Lengths of unique contexts : {len(self.contexts)}")
         self.ids = list(range(len(self.contexts)))
-
+        self.get_sparse_embedding()
 
 
     def get_sparse_embedding(self) -> NoReturn:
@@ -497,28 +497,22 @@ class BM25:
 
 if __name__ == "__main__":
     import argparse
+    from omegaconf import OmegaConf
 
-    parser = argparse.ArgumentParser(description="")
-    parser.add_argument(
-        "--dataset_name", metavar="./data/train_dataset", type=str, help=""
-    )
-    parser.add_argument(
-        "--model_name_or_path",
-        metavar="bert-base-multilingual-cased",
-        type=str,
-        help="",
-    )
-    parser.add_argument("--data_path", metavar="./data", type=str, help="")
-    parser.add_argument(
-        "--context_path", metavar="wikipedia_documents", type=str, help=""
-    )
-    parser.add_argument("--use_faiss", metavar=False, type=bool, help="")
-    parser.add_argument("--bm25", default=True, type=bool, help="")
+    config_name = 'base_config'
+    cfg = OmegaConf.load(f'./conf/retrieval/{config_name}.yaml')   
 
-    args = parser.parse_args()
+    # hyper parameter
+    dataset_name = cfg.path.dataset_name
+    data_path = cfg.path.data_path
+
+    model_name_or_path = cfg.model.model_name_or_path
+    context_path = cfg.model.context_path
+    use_faiss = cfg.model.use_faiss
+    bm25 = cfg.model.bm25
 
     # Test sparse
-    org_dataset = load_from_disk(args.dataset_name)
+    org_dataset = load_from_disk(dataset_name)
 
     full_ds = concatenate_datasets(
         [
@@ -531,26 +525,26 @@ if __name__ == "__main__":
 
     from transformers import AutoTokenizer
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, use_fast=False,)
+    tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_fast=False,)
 
-    if args.bm25:
-        tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, use_fast=False,)
+    if bm25:
+        tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_fast=False,)
         retriever = BM25(
             tokenize_fn=tokenizer.tokenize,
-            data_path=args.data_path,
-            context_path=args.context_path,
+            data_path=data_path,
+            context_path=context_path,
         )
     else: #TF-IDF
-        tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, use_fast=False,)
+        tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_fast=False,)
         retriever = SparseRetrieval(
             tokenize_fn=tokenizer.tokenize,
-            data_path=args.data_path,
-            context_path=args.context_path,
+            data_path=data_path,
+            context_path=context_path,
         )
 
     query = "대통령을 포함한 미국의 행정부 견제권을 갖는 국가 기관은?"
 
-    if args.use_faiss:
+    if use_faiss:
 
         # test single query
         with timer("single query by faiss"):

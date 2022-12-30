@@ -291,6 +291,6 @@ def run_mrc(
 if __name__ == "__main__":
     # configuation
     config_name = 'roberta-large_config'
-    cfg = OmegaConf.load(f'./conf/{config_name}.yaml')
+    cfg = OmegaConf.load(f'./conf/reader/{config_name}.yaml')
 
     main(cfg)
