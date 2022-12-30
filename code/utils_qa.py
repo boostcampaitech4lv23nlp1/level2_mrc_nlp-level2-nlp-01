@@ -71,7 +71,8 @@ def postprocess_qa_predictions(
         examples: 전처리 되지 않은 데이터셋 (see the main script for more information).
         features: 전처리가 진행된 데이터셋 (see the main script for more information).
         predictions (:obj:`Tuple[np.ndarray, np.ndarray]`):
-            모델의 예측값 :start logits과 the end logits을 나타내는 two arrays              첫번째 차원은 :obj:`features`의 element와 갯수가 맞아야함.
+            모델의 예측값 :start logits과 the end logits을 나타내는 two arrays              
+            첫번째 차원은 :obj:`features`의 element와 갯수가 맞아야함.
         version_2_with_negative (:obj:`bool`, `optional`, defaults to :obj:`False`):
             정답이 없는 데이터셋이 포함되어있는지 여부를 나타냄
         n_best_size (:obj:`int`, `optional`, defaults to 20):
@@ -155,10 +156,7 @@ def postprocess_qa_predictions(
                 }
 
             # `n_best_size`보다 큰 start and end logits을 살펴봅니다.
-            start_indexes = np.argsort(start_logits)[
-                -1 : -n_best_size - 1 : -1
-            ].tolist()
-
+            start_indexes = np.argsort(start_logits)[-1 : -n_best_size - 1 : -1].tolist()
             end_indexes = np.argsort(end_logits)[-1 : -n_best_size - 1 : -1].tolist()
 
             for start_index in start_indexes:

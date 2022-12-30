@@ -21,6 +21,7 @@ def timer(name):
     print(f"[{name}] done in {time.time() - t0:.3f} s")
 
 
+
 class SparseRetrieval:
     def __init__(
         self,
@@ -395,16 +396,7 @@ class BM25:
         print(f"Lengths of unique contexts : {len(self.contexts)}")
         self.ids = list(range(len(self.contexts)))
 
-        # Transform by vectorizer
-        self.tfidfv = TfidfVectorizer(
-            tokenizer=tokenize_fn, ngram_range=(1, 2), max_features=50000,
-        )
 
-        self.p_embedding = None  # get_sparse_embedding()로 생성합니다
-        self.indexer = None  # build_faiss()로 생성합니다.
-        
-        self.tokenize_fn = tokenize_fn
-        self.bm25 = None
 
     def get_sparse_embedding(self) -> NoReturn:
         # Pickle을 저장합니다.
