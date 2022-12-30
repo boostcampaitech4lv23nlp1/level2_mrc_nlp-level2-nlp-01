@@ -35,6 +35,7 @@ def main(cfg):
 
     model_name_or_path = cfg.train.model.model_name_or_path
     tokenizer_name = cfg.train.model.tokenizer_name
+    label_smoothing_factor = cfg.train.model.label_smoothing_factor
     num_train_epochs = cfg.train.model.num_train_epochs
     per_device_train_batch_size = cfg.train.model.per_device_train_batch_size
     learning_rate = cfg.train.model.learning_rate
@@ -71,6 +72,7 @@ def main(cfg):
 
     training_args.do_train = do_train
     training_args.do_eval = do_eval
+    training_args.label_smoothing_factor = label_smoothing_factor
     training_args.num_train_epochs = num_train_epochs
     training_args.per_device_train_batch_size = per_device_train_batch_size
     training_args.learning_rate = learning_rate
@@ -291,7 +293,7 @@ def run_mrc(
 
 if __name__ == "__main__":
     # configuation
-    config_name = 'koelectra_config'
+    config_name = 'roberta-large_config'
     cfg = OmegaConf.load(f'./conf/{config_name}.yaml')
 
     main(cfg)
