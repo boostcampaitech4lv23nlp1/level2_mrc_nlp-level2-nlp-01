@@ -42,10 +42,12 @@ logger = logging.getLogger(__name__)
 def main(cfg):
     output_dir = cfg.test.path.output_dir
     dataset_name = cfg.test.path.dataset_name
-    model_name_or_path = cfg.test.path.model_name_or_path
+
     do_train = cfg.test.stage.do_train
     do_eval = cfg.test.stage.do_eval
     do_predict = cfg.test.stage.do_predict
+
+    model_name_or_path = cfg.test.model.model_name_or_path
 
     # 가능한 arguments 들은 ./arguments.py 나 transformer package 안의 src/transformers/training_args.py 에서 확인 가능합니다.
     # --help flag 를 실행시켜서 확인할 수 도 있습니다.
@@ -54,13 +56,17 @@ def main(cfg):
     )
     model_args, data_args, training_args = parser.parse_args_into_dataclasses(['--output_dir', output_dir])
 
-
+    # ------------------------ hyper parameter 설정 ------------------------ #
     data_args.dataset_name = dataset_name
     model_args.model_name_or_path = model_name_or_path
 
     training_args.do_train = do_train
     training_args.do_eval = do_eval
     training_args.do_predict = do_predict
+
+    
+    # ----------------------------------------------------------------------- #
+
 
     print(f"model is from {model_args.model_name_or_path}")
     print(f"data is from {data_args.dataset_name}")
@@ -286,7 +292,7 @@ def run_mrc(
 
 if __name__ == "__main__":
     # configuation
-    config_name = 'base_config'
+    config_name = 'koelectra_config'
     cfg = OmegaConf.load(f'./conf/{config_name}.yaml')
 
     main(cfg)
