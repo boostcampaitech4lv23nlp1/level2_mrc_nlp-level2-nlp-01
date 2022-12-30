@@ -31,7 +31,6 @@ from trainer_qa import QuestionAnsweringTrainer
 from transformers import (
     AutoConfig,
     AutoModelForQuestionAnswering,
-    AutoModelForSeq2SeqLM,
     AutoTokenizer,
     DataCollatorForSeq2Seq, # 다른 시퀀스 length을 가진 input들을 합쳐줘서 gpu에서 pair computing이 쉽게 만들어 준다.
     Seq2SeqTrainer, # 
@@ -41,6 +40,8 @@ from transformers import (
     HfArgumentParser,
     TrainingArguments,
     set_seed,
+    T5TokenizerFast, 
+    T5ForConditionalGeneration
 )
 from utils_qa import check_no_error, postprocess_qa_predictions
 from preprocess import prepare_validation_features
@@ -97,21 +98,28 @@ def main(cfg):
         if model_args.config_name
         else model_args.model_name_or_path,
     )
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_args.tokenizer_name
-        if model_args.tokenizer_name
-        else model_args.model_name_or_path,
-        use_fast=True,
-    )
+    
 
     if cfg.reader.mode.generation==False:
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_args.tokenizer_name
+            if model_args.tokenizer_name
+            else model_args.model_name_or_path,
+            use_fast=True,
+                )
         model = AutoModelForQuestionAnswering.from_pretrained(
             model_args.model_name_or_path,
             from_tf=bool(".ckpt" in model_args.model_name_or_path),
             config=config,
         )
     else:
-        model = AutoModelForSeq2SeqLM.from_pretrained(
+        tokenizer = T5TokenizerFast.from_pretrained(
+            model_args.tokenizer_name
+            if model_args.tokenizer_name
+            else model_args.model_name_or_path,
+            use_fast=True,
+                )
+        model = T5ForConditionalGeneration.from_pretrained(
             model_args.model_name_or_path,
             from_tf=bool(".ckpt" in model_args.model_name_or_path),
             config=config,
@@ -439,12 +447,6 @@ def run_mrc_based_generation(
 
     if training_args.do_predict:
         logger.info("*** Predict ***")
-        predictions = trainer.predict(
-            test_dataset=eval_dataset,
-        )
-        # 12/27 실험중인 코드
-        for i in range(len(predictions)):
-            print(tokenizer.decode(predictions[i], skip_special_tokens=True))
         
         prediction_file = training_args.output_dir + '/prediction.json'
 
