@@ -425,18 +425,6 @@ def run_mrc_based_generation(
 
         result = metric.compute(predictions=formatted_predictions, references=references)
         return result
-    
-    # args = Seq2SeqTrainingArguments(
-    #     output_dir='outputs', 
-    #     do_train=True, 
-    #     do_eval=True, 
-    #     predict_with_generate=True,
-    #     per_device_train_batch_size=train_batch_size,
-    #     per_device_eval_batch_size=eval_batch_size,
-    #     num_train_epochs=num_train_epochs,
-    #     save_strategy='epoch',
-    #     save_total_limit=2 # 모델 checkpoint를 최대 몇개 저장할지 설정
-    #     )
 
     training_args.predict_with_generate=True
     training_args.save_total_limit=2

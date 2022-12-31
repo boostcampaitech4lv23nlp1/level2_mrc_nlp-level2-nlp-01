@@ -1,6 +1,6 @@
 train:
     path:
-        output_dir: /opt/ml/input/models/pko-t5-base/
+        output_dir: /opt/ml/input/models/pko-t5-base-source_len_768/
         dataset_name: /opt/ml/input/data/train_dataset
         delete_exist_output: True
 
@@ -18,9 +18,9 @@ train:
 
 test:
     path:
-        output_dir: /opt/ml/input/models/pko-t5-base/
+        output_dir: /opt/ml/input/models/pko-t5-base-source_len_768/
         dataset_name: /opt/ml/input/data/test_dataset
-        model_name_or_path: /opt/ml/input/models/pko-t5-base/
+        model_name_or_path: /opt/ml/input/models/pko-t5-base-source_len_768/
         delete_exist_output: False
 
     stage:
@@ -33,7 +33,7 @@ reader:
       generation: True
     generation:
       num_beams: 2
-      max_source_length: 384
-      max_target_length: 16
+      max_source_length: 768
+      max_target_length: 32
       padding: "max_length"
       
