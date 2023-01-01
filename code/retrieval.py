@@ -469,7 +469,7 @@ class BM25:
 
         sorted_result = np.argsort(result)[::-1]
         doc_score = result.squeeze()[sorted_result].tolist()[:k]
-        doc_indices = sorted_scores.tolist()[:k]
+        doc_indices = sorted_result.tolist()[:k]
         return doc_score, doc_indices
 
 
@@ -484,7 +484,7 @@ class BM25:
         
         doc_scores = []
         doc_indices = []
-        for i in query_vec:
+        for i in tqdm(query_vec, desc='calculate scores', total=len(query_vec)):
             result = self.bm25.get_scores(i)
 
             sorted_scores = np.sort(result)[::-1]
@@ -496,6 +496,11 @@ class BM25:
 
 
 if __name__ == "__main__":
+    """
+    output:
+        BM25:
+            ../data/BM25_sparse_embedding.bin 이 생성됩니다.
+    """
     import argparse
     from omegaconf import OmegaConf
 
