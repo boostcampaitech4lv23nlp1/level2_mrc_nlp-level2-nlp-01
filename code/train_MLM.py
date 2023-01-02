@@ -88,6 +88,7 @@ def main(cfg):
     dataset = load_dataset('squad_kor_v1')
     MLM_train, MLM_eval = dataset['train'], dataset['validation']
     
+    # TODO: github issue (#4)
     if do_eval:
         train_dataset = dataset['train'][:]['question']
         eval_dataset = dataset['validation'][:]['question']
