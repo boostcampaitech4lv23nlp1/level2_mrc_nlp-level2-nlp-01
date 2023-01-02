@@ -15,9 +15,9 @@ train:
         label_smoothing_factor: 0.0
         num_train_epochs: 3
         per_device_train_batch_size: 32
-        learning_rate: 5e-5
-        warmup_steps: 500
-        weight_decay: 0.01
+        learning_rate: 3e-5
+        warmup_steps: 250
+        weight_decay: 0.005
         fp16: True
 
 test:
