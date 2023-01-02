@@ -11,5 +11,5 @@ parameters:
     weight_decay:
         values: [0.01, 0.005]
 metric:
-    name: 'train/loss'
-    goal: 'minimize'
+    name: 'eval/exact_match'
+    goal: 'maximize'
