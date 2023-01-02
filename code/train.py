@@ -3,6 +3,7 @@ import os
 import sys
 from typing import NoReturn
 import shutil
+import wandb
 
 from omegaconf import OmegaConf
 from arguments import DataTrainingArguments, ModelArguments
@@ -79,6 +80,10 @@ def main(cfg):
     training_args.warmup_steps = warmup_steps
     training_args.weight_decay = weight_decay
     training_args.fp16 = fp16
+
+    training_args.logging_strategy = 'epoch'
+    training_args.evaluation_strategy = 'epoch'
+    
 
     # ----------------------------------------------------------------------- #
     print(f"model is from {model_args.model_name_or_path}")
