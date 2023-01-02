@@ -159,34 +159,9 @@ def run_mrc(
         print('If you want to use your W&B account, go to Add-ons -> Secrets and provide your W&B access token. Use the Label name as wandb_api. \nGet your W&B access token from here: https://wandb.ai/authorize')
 
     sweep_cfg = OmegaConf.to_object(sweep_cfg)
-    '''
-    sweep_cfg = {
-        'method': 'random',
-        'parameters':{
-            'learning_rate':{
-                'distribution': 'uniform',
-                'min': 1e-5,
-                'max': 1e-4
-            },
-            'label_smoothing_factor':{
-                'values': [0., 0.1],
-            },
-            'warmup_steps': {
-                'values': [250, 500],
-            },
-            'weight_decay': {
-                'values': [0.01, 0.005]
-            }
-        },
-        'metric':{
-            'name': 'train/loss',
-            'goal': 'minimize'
-        }
-    }
-    '''
     sweep_id = wandb.sweep(
         sweep=sweep_cfg,
-        project='sweep'
+        project='sweep_test'
     )
 
     # dataset을 전처리합니다.
@@ -244,7 +219,7 @@ def run_mrc(
 
     # define sweep train
     def sweep_train(config=None):
-        wandb.init(project='sweep', name='tuning', config=config)
+        wandb.init(project='sweep_test', name='tuning', config=config)
         config = wandb.config
         
         print('label_smoothing_factor :', config.label_smoothing_factor)
