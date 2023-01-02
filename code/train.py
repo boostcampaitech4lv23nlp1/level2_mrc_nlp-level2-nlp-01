@@ -20,7 +20,7 @@ from utils_qa import check_no_error, postprocess_qa_predictions
 
 logger = logging.getLogger(__name__)
 
-
+# main
 def main():
     # 가능한 arguments 들은 ./arguments.py 나 transformer package 안의 src/transformers/training_args.py 에서 확인 가능합니다.
     # --help flag 를 실행시켜서 확인할 수 도 있습니다.
