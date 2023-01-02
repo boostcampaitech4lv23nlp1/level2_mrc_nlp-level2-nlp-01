@@ -40,11 +40,14 @@ def main(cfg):
     do_eval = cfg.train.stage.do_eval
     overwrite_cache = cfg.train.stage.overwrite_cache
 
+    model_name_or_path = cfg.train.model.model_name_or_path
+    tokenizer_name = cfg.train.model.tokenizer_name
+    label_smoothing_factor = cfg.train.model.label_smoothing_factor
     num_train_epochs = cfg.train.model.num_train_epochs
     per_device_train_batch_size = cfg.train.model.per_device_train_batch_size
     learning_rate = cfg.train.model.learning_rate
-    warmup_steps = cfg.train.model.warmup_steps
     weight_decay = cfg.train.model.weight_decay
+    fp16 = cfg.train.model.fp16
 
     # 가능한 arguments 들은 ./arguments.py 나 transformer package 안의 src/transformers/training_args.py 에서 확인 가능합니다.
     # --help flag 를 실행시켜서 확인할 수 도 있습니다.
@@ -66,20 +69,26 @@ def main(cfg):
     model_args, data_args, training_args = parser.parse_args_into_dataclasses(['--output_dir', output_dir])
     print(model_args.model_name_or_path)
 
-    # hyper parameter 설정
+    # ------------------------ hyper parameter 설정 ------------------------ #
     data_args.dataset_name = dataset_name
     data_args.overwrite_cache = overwrite_cache
 
+    model_args.model_name_or_path = model_name_or_path
+    model_args.tokenizer_name = tokenizer_name
+
     training_args.do_train = do_train
     training_args.do_eval = do_eval
+    training_args.label_smoothing_factor = label_smoothing_factor
     training_args.num_train_epochs = num_train_epochs
     training_args.per_device_train_batch_size = per_device_train_batch_size
     training_args.learning_rate = learning_rate
-    training_args.warmup_steps = warmup_steps
     training_args.weight_decay = weight_decay
+    training_args.fp16 = fp16
 
+    # ----------------------------------------------------------------------- #
     print(f"model is from {model_args.model_name_or_path}")
     print(f"data is from {data_args.dataset_name}")
+    
 
     # logging 설정
     logging.basicConfig(
@@ -511,7 +520,7 @@ def run_mrc_based_generation(
 
 if __name__ == "__main__":
     # configuation
-    config_name = 'base_config'
-    cfg = OmegaConf.load(f'./conf/{config_name}.yaml')
+    config_name = 'roberta-large_config'
+    cfg = OmegaConf.load(f'./conf/reader/{config_name}.yaml')
 
     main(cfg)

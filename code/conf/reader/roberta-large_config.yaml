@@ -1,0 +1,35 @@
+train:
+    path:
+        output_dir: ./models/train_dataset/
+        dataset_name: ../data/train_dataset/
+        delete_exist_output: True
+
+    stage:
+        do_train: True
+        do_eval: True
+        overwrite_cache: True
+
+    model:
+        model_name_or_path: 'klue/roberta-large'
+        tokenizer_name: 'klue/roberta-large'
+        label_smoothing_factor: 0.0
+        num_train_epochs: 5
+        per_device_train_batch_size: 32
+        learning_rate: 5e-5
+        warmup_steps: 500
+        weight_decay: 0.01
+        fp16: True
+
+test:
+    path:
+        output_dir: ./outputs/test_dataset/
+        dataset_name: ../data/test_dataset/
+        delete_exist_output: False
+
+    stage:
+        do_train: False
+        do_eval: False
+        do_predict: True
+
+    model:
+        model_name_or_path: ./models/train_dataset/  

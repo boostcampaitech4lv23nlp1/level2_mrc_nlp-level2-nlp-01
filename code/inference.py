@@ -25,8 +25,8 @@ from datasets import (
     load_from_disk,
     load_metric,
 )
+from retrieval import SparseRetrieval, BM25
 from omegaconf import OmegaConf
-from retrieval import SparseRetrieval
 from trainer_qa import QuestionAnsweringTrainer
 from transformers import (
     AutoConfig,
@@ -52,10 +52,12 @@ logger = logging.getLogger(__name__)
 def main(cfg):
     output_dir = cfg.test.path.output_dir
     dataset_name = cfg.test.path.dataset_name
-    model_name_or_path = cfg.test.path.model_name_or_path
+
     do_train = cfg.test.stage.do_train
     do_eval = cfg.test.stage.do_eval
     do_predict = cfg.test.stage.do_predict
+
+    model_name_or_path = cfg.test.model.model_name_or_path
 
     # 가능한 arguments 들은 ./arguments.py 나 transformer package 안의 src/transformers/training_args.py 에서 확인 가능합니다.
     # --help flag 를 실행시켜서 확인할 수 도 있습니다.
@@ -64,13 +66,17 @@ def main(cfg):
     )
     model_args, data_args, training_args = parser.parse_args_into_dataclasses(['--output_dir', output_dir])
 
-
+    # ------------------------ hyper parameter 설정 ------------------------ #
     data_args.dataset_name = dataset_name
     model_args.model_name_or_path = model_name_or_path
 
     training_args.do_train = do_train
     training_args.do_eval = do_eval
     training_args.do_predict = do_predict
+
+    
+    # ----------------------------------------------------------------------- #
+
 
     print(f"model is from {model_args.model_name_or_path}")
     print(f"data is from {data_args.dataset_name}")
@@ -151,9 +157,7 @@ def run_sparse_retrieval(
     ) -> DatasetDict:
 
     # Query에 맞는 Passage들을 Retrieval 합니다.
-    retriever = SparseRetrieval(
-        tokenize_fn=tokenize_fn, data_path=data_path, context_path=context_path
-    )
+    retriever = BM25(tokenize_fn=tokenize_fn, data_path=data_path, context_path=context_path)
     retriever.get_sparse_embedding()
 
     if data_args.use_faiss:
@@ -469,7 +473,7 @@ def run_mrc_based_generation(
 
 if __name__ == "__main__":
     # configuation
-    config_name = 'base_config'
-    cfg = OmegaConf.load(f'./conf/{config_name}.yaml')
+    config_name = 'roberta-large_config'
+    cfg = OmegaConf.load(f'./conf/reader/{config_name}.yaml')
 
     main(cfg)
