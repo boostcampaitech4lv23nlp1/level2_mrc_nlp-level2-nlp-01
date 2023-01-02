@@ -392,7 +392,7 @@ def run_mrc_based_generation(
         pad_to_multiple_of=None,
     )
 
-    metric = load_metric("squad")
+    metric = load_metric("rouge")
 
     def postprocess_text(preds, labels):
         """
@@ -426,7 +426,7 @@ def run_mrc_based_generation(
         references = [{"id": ex["id"], "answers": ex["answers"]} for ex in datasets["validation"]]
 
         result = metric.compute(predictions=formatted_predictions, references=references)
-        return result
+        return result.mid
 
     training_args.predict_with_generate=True
     training_args.save_total_limit=2

@@ -1,6 +1,6 @@
 train:
     path:
-        output_dir: /opt/ml/input/models/pko-t5-base-source_len_768/
+        output_dir: /opt/ml/input/models/pko-t5-base-source_len_768_rouge/
         dataset_name: /opt/ml/input/data/train_dataset
         delete_exist_output: True
 
@@ -18,9 +18,9 @@ train:
 
 test:
     path:
-        output_dir: /opt/ml/input/models/pko-t5-base-source_len_768/
+        output_dir: /opt/ml/input/models/pko-t5-base-source_len_768_rouge/
         dataset_name: /opt/ml/input/data/test_dataset
-        model_name_or_path: /opt/ml/input/models/pko-t5-base-source_len_768/
+        model_name_or_path: /opt/ml/input/models/pko-t5-base-source_len_768_rouge/
         delete_exist_output: False
 
     stage:
