@@ -9,8 +9,8 @@ class ModelArguments:
     """
 
     model_name_or_path: str = field(
-        # default="klue/bert-base",
-        default="paust/pko-t5-base",
+        # default="paust/pko-t5-small",
+        default="klue/roberta-large",
         metadata={
             "help": "Path to pretrained model or model identifier from huggingface.co/models"
         },
