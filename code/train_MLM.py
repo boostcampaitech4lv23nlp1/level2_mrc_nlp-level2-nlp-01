@@ -11,7 +11,7 @@ from transformers import (
     HfArgumentParser,
     set_seed,
 )
-from datasets import load_from_disk
+from datasets import load_from_disk, load_dataset
 from omegaconf import OmegaConf
 
 from arguments import ModelArguments
@@ -81,10 +81,13 @@ def main(cfg):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForMaskedLM.from_pretrained(model_name, config=config_)
 
-    # load_dataset
-    dataset = load_from_disk(dataset_dir)
-    MLM_train, MLM_eval = None, None
-
+    '''
+        load dataset
+            squad_kor_v1: Dataset Card for KorQuAD v1.0
+    '''
+    dataset = load_dataset('squad_kor_v1')
+    MLM_train, MLM_eval = dataset['train'], dataset['validation']
+    
     if do_eval:
         train_dataset = dataset['train'][:]['question']
         eval_dataset = dataset['validation'][:]['question']
