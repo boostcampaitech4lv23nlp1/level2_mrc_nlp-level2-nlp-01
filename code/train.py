@@ -13,6 +13,7 @@ from transformers import (
     AutoModelForQuestionAnswering,
     DataCollatorForSeq2Seq, # 다른 시퀀스 length을 가진 input들을 합쳐줘서 gpu에서 pair computing이 쉽게 만들어 준다.
     Seq2SeqTrainer, # 
+    AutoTokenizer,
     Seq2SeqTrainingArguments, #
     DataCollatorWithPadding,
     EvalPrediction,
@@ -67,7 +68,7 @@ def main(cfg):
                 print('기존 output을 삭제하지 않습니다.')
 
     model_args, data_args, training_args = parser.parse_args_into_dataclasses(['--output_dir', output_dir])
-    print(model_args.model_name_or_path)
+
 
     # ------------------------ hyper parameter 설정 ------------------------ #
     data_args.dataset_name = dataset_name
@@ -86,6 +87,7 @@ def main(cfg):
     training_args.fp16 = fp16
 
     # ----------------------------------------------------------------------- #
+    print(f"tokenizer is from {model_args.tokenizer_name}")
     print(f"model is from {model_args.model_name_or_path}")
     print(f"data is from {data_args.dataset_name}")
     
@@ -114,7 +116,7 @@ def main(cfg):
         else model_args.model_name_or_path,
     )
     
-    if cfg.reader.mode.generation==False:
+    if cfg.reader.mode.generation is False:
         tokenizer = AutoTokenizer.from_pretrained(
             model_args.tokenizer_name
             if model_args.tokenizer_name
@@ -283,7 +285,7 @@ def run_mrc_based_extraction(
             checkpoint = model_args.model_name_or_path
         else:
             checkpoint = None
-        train_result = trainer.train(resume_from_checkpoint=checkpoint)
+        train_result = trainer.train(resume_from_checkpoint=None)
         trainer.save_model()  # Saves the tokenizer too for easy upload
 
         metrics = train_result.metrics
@@ -511,11 +513,6 @@ def run_mrc_based_generation(
     for i in np.random.randint(0, len(datasets["validation"]), 5):
         print(generarate_answer(datasets["validation"][int(i)]))
         print("=" * 8)
-
-
-    
-
-    
 
 
 if __name__ == "__main__":
