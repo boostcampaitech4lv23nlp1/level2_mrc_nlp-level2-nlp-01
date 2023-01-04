@@ -47,6 +47,7 @@ def main(cfg):
     num_train_epochs = cfg.train.model.num_train_epochs
     per_device_train_batch_size = cfg.train.model.per_device_train_batch_size
     learning_rate = cfg.train.model.learning_rate
+    warmup_steps = cfg.train.model.warmup_steps
     weight_decay = cfg.train.model.weight_decay
     fp16 = cfg.train.model.fp16
 
@@ -83,6 +84,7 @@ def main(cfg):
     training_args.num_train_epochs = num_train_epochs
     training_args.per_device_train_batch_size = per_device_train_batch_size
     training_args.learning_rate = learning_rate
+    training_args.warmup_steps = warmup_steps
     training_args.weight_decay = weight_decay
     training_args.fp16 = fp16
 
