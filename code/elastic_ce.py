@@ -19,7 +19,7 @@ def timer(name):
 class ElasticRetrieval:
     def __init__(self, INDEX_NAME):
         self.es, self.index_name = es_setting(index_name=INDEX_NAME) 
-        self.cross_encoder = CrossEncoder('cross-encoder/ms-marco-electra-base')
+        
         
     def retrieve(
         self, query_or_dataset: Union[str, Dataset], topk: Optional[int] = 1
@@ -42,7 +42,7 @@ class ElasticRetrieval:
                 doc_scores, doc_indices, docs = self.get_relevant_doc_bulk(
                     query_or_dataset["question"], k=topk
                 )
-
+        
             for idx, example in enumerate(tqdm(query_or_dataset, desc="Sparse retrieval with Elasticsearch: ")):
                 # retrieved_context 구하는 부분 수정
                 retrieved_context = []
@@ -50,57 +50,44 @@ class ElasticRetrieval:
                     retrieved_context.append(docs[idx][i]['_source']['document_text'])
                     
                 
-                re=[]
-                re.append(example["question"])
-                re.append(example["id"])
-                re.append(retrieved_context)
-                
-                tmp = self.rerank(re)
-                
-                # tmp = {
-                #     # Query와 해당 id를 반환합니다.
-                #     "question": example["question"],
-                #     "id": example["id"],
-                #     "context": retrieved_context,
-                # }
+                tmp = {
+                    # Query와 해당 id를 반환합니다.
+                    "question": example["question"],
+                    "id": example["id"],
+                    "context": retrieved_context,
+                }
 
                 if "context" in example.keys() and "answers" in example.keys():
                     # validation 데이터를 사용하면 ground_truth context와 answer도 반환합니다.
                     tmp["original_context"] = example["context"]
                     tmp["answers"] = example["answers"]
-                    
+                
                 total.append(tmp)
-            
-            cqas = pd.DataFrame(total)
+
+            results = self.rerank(total)
+            cqas = pd.DataFrame(results)
             return cqas
     
     def rerank(self, results) :
         #print(results[0])
         #["유령'은 어느 행성에서 지구로 왔는가?", 'mrc-1-000653', ['13717', '5978', '6706', '12176', '11493', '16189', '1454', '17232', '12105', '12179']]
 
-        
-        
         # rerank_results= {}
-        
+        totals = []
+        cross_encoder = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
          #잠시만 테스트용도로
-        # for result in results:
-        sentence_pairs = []
+        for result in results:
+            sentence_pairs = []
 
-        for context in results[2]:    #result
-            sentence_pairs.append([results[0], context])    #result
-        rerank_scores = np.array([float(score) for score in self.cross_encoder.predict(sentence_pairs, batch_size=128)])
-        sort_info = rerank_scores.argsort()
+            for context in result['context']:    #result
+                sentence_pairs.append([result['question'], context])    #result
+            rerank_scores = np.array([float(score) for score in cross_encoder.predict(sentence_pairs, batch_size=128)])
+            sort_info = rerank_scores.argsort()
 
-        new_context = np.array(results[2])[sort_info][::-1].tolist()
-
-        tmp = {
-            "question": results[0],    #result
-            "id": results[1],     #result
-            # Retrieve한 Passage의 id, context를 반환합니다.
-            "context": " ".join(new_context[:40]),
-        }
-            
-        return tmp
+            new_context = np.array(result['context'])[sort_info][::-1].tolist()
+            result['context'] = new_context[:40]
+            totals.append(result)
+        return totals
         
     def get_relevant_doc(self, query: str, k: Optional[int] = 1) -> Tuple[List, List]:
         doc_score = []
