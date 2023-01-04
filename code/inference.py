@@ -1,6 +1,5 @@
 """
 Open-Domain Question Answering 을 수행하는 inference 코드 입니다.
-
 대부분의 로직은 train.py 와 비슷하나 retrieval, predict 부분이 추가되어 있습니다.
 """
 
@@ -20,8 +19,8 @@ from datasets import (
     load_from_disk,
     load_metric,
 )
-from retrieval import SparseRetrieval, BM25
 from omegaconf import OmegaConf
+from retrieval import SparseRetrieval
 from trainer_qa import QuestionAnsweringTrainer
 from transformers import (
     AutoConfig,
@@ -36,18 +35,19 @@ from transformers import (
 from utils_qa import check_no_error, postprocess_qa_predictions
 from preprocess import prepare_validation_features
 
+# from elastic_retrieval import ElasticRetrieval
+from elastic_ce import ElasticRetrieval
+
 logger = logging.getLogger(__name__)
 
 
 def main(cfg):
     output_dir = cfg.test.path.output_dir
     dataset_name = cfg.test.path.dataset_name
-
+    model_name_or_path = cfg.test.path.model_name_or_path
     do_train = cfg.test.stage.do_train
     do_eval = cfg.test.stage.do_eval
     do_predict = cfg.test.stage.do_predict
-
-    model_name_or_path = cfg.test.model.model_name_or_path
 
     # 가능한 arguments 들은 ./arguments.py 나 transformer package 안의 src/transformers/training_args.py 에서 확인 가능합니다.
     # --help flag 를 실행시켜서 확인할 수 도 있습니다.
@@ -56,17 +56,13 @@ def main(cfg):
     )
     model_args, data_args, training_args = parser.parse_args_into_dataclasses(['--output_dir', output_dir])
 
-    # ------------------------ hyper parameter 설정 ------------------------ #
+
     data_args.dataset_name = dataset_name
     model_args.model_name_or_path = model_name_or_path
 
     training_args.do_train = do_train
     training_args.do_eval = do_eval
     training_args.do_predict = do_predict
-
-    
-    # ----------------------------------------------------------------------- #
-
 
     print(f"model is from {model_args.model_name_or_path}")
     print(f"data is from {data_args.dataset_name}")
@@ -123,13 +119,19 @@ def run_sparse_retrieval(
     datasets: DatasetDict,
     training_args: TrainingArguments,
     data_args: DataTrainingArguments,
-    data_path: str = "/opt/ml/input/data",
+    data_path: str = "../data",
     context_path: str = "wikipedia_documents.json",
 ) -> DatasetDict:
 
     # Query에 맞는 Passage들을 Retrieval 합니다.
-    retriever = BM25(tokenize_fn=tokenize_fn, data_path=data_path, context_path=context_path)
-    retriever.get_sparse_embedding()
+    if data_args.use_elastic : 
+        retriever = ElasticRetrieval(data_args.elastic_index_name)
+    
+    else:
+        retriever = SparseRetrieval(
+            tokenize_fn=tokenize_fn, data_path=data_path, context_path=context_path
+        )
+        retriever.get_sparse_embedding()
 
     if data_args.use_faiss:
         retriever.build_faiss(num_clusters=data_args.num_clusters)
@@ -138,7 +140,6 @@ def run_sparse_retrieval(
         )
     else:
         df = retriever.retrieve(datasets["validation"], topk=data_args.top_k_retrieval)
-
     # test data 에 대해선 정답이 없으므로 id question context 로만 데이터셋이 구성됩니다.
     if training_args.do_predict:
         f = Features(
@@ -166,6 +167,7 @@ def run_sparse_retrieval(
                 "question": Value(dtype="string", id=None),
             }
         )
+    
     datasets = DatasetDict({"validation": Dataset.from_pandas(df, features=f)})
     return datasets
 
@@ -177,11 +179,10 @@ def run_mrc(
     datasets: DatasetDict,
     tokenizer,
     model,
-) -> NoReturn:
+) -> None:
 
     # eval 혹은 prediction에서만 사용함
     column_names = datasets["validation"].column_names
-
     question_column_name = "question" if "question" in column_names else column_names[0]
     context_column_name = "context" if "context" in column_names else column_names[1]
     answer_column_name = "answers" if "answers" in column_names else column_names[2]
@@ -290,7 +291,7 @@ def run_mrc(
 
 if __name__ == "__main__":
     # configuation
-    config_name = 'roberta-large_config'
-    cfg = OmegaConf.load(f'./conf/reader/{config_name}.yaml')
+    config_name = 'base_config'
+    cfg = OmegaConf.load(f'./conf/{config_name}.yaml')
 
     main(cfg)
