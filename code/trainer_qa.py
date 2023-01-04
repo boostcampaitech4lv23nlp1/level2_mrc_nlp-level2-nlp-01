@@ -35,9 +35,7 @@ class QuestionAnsweringTrainer(Trainer):
         self.eval_examples = eval_examples
         self.post_process_function = post_process_function
 
-        self.label_smoothing_factor = 0.0
-        if kwargs['args'].label_smoothing_factor is not None:
-            self.label_smoothing_factor = kwargs['args'].label_smoothing_factor
+        self.label_smoothing_factor = kwargs['args'].label_smoothing_factor
 
     def compute_loss(self, model, inputs, return_outputs=False):
         start_positions = inputs.get('start_positions')
