@@ -6,3 +6,6 @@ train:
         output_dir: ./models/pretraining_dataset/
         dataset_name: ../data/train_dataset/
         delete_exist_output: True
+
+    model:
+        num_train_epochs: 1

@@ -37,4 +37,3 @@ test:
 
     model:
         model_name_or_path: ./models/finetuning_dataset/  
-        
