@@ -43,6 +43,7 @@ def main(cfg):
 
     column_names = datasets['train'].column_names
     context_column_name = "context" if "context" in column_names else column_names[1]
+    question_column_name = "question" if "question" in column_names else column_names[0]
 
     tokenizer = AutoTokenizer.from_pretrained(
         pretrained_model_name_or_path='klue/roberta-large',
@@ -55,11 +56,15 @@ def main(cfg):
         mlm_probability=0.15
     )
 
+    # ------------------------ preprocessing ------------------------ #
     def preprocessing(x):
         tokenized_data = tokenizer(
+            x[question_column_name],
             x[context_column_name],
+            truncation='only_second',
             max_length=384,
             stride=128,
+            return_token_type_ids=False, # roberta모델을 사용할 경우 False, bert를 사용할 경우 True로 표기해야합니다.
             padding=False
         )
         return tokenized_data
@@ -77,6 +82,8 @@ def main(cfg):
         batched=True,
         remove_columns=column_names
     )
+    # -------------------------------------------------------------- #
+
     model = AutoModelForMaskedLM.from_pretrained('klue/roberta-large')
 
     # ------------------------------------------------------------------------------------ # 
@@ -93,7 +100,7 @@ def main(cfg):
         output_dir=cfg.train.path.output_dir,
         evaluation_strategy='epoch',
         learning_rate=2e-5,
-        num_train_epochs=1,
+        num_train_epochs=cfg.train.model.num_train_epochs,
         weight_decay=0.01,
         save_strategy='epoch',
         report_to='wandb'
