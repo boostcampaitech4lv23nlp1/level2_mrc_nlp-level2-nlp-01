@@ -14,7 +14,7 @@ import pickle
 import numpy as np
 import nltk
 from tqdm import tqdm
-
+from elastic_retrieval import ElasticRetrieval
 from arguments import DataTrainingArguments, ModelArguments
 from datasets import (
     Dataset,
@@ -131,7 +131,7 @@ def main(cfg):
             config=config,
         )
 
-  
+
     # True일 경우 : run passage retrieval
     if data_args.eval_retrieval:
         datasets = run_sparse_retrieval(
@@ -156,9 +156,12 @@ def run_sparse_retrieval(
     context_path: str = "wikipedia_documents.json",
     ) -> DatasetDict:
 
+    if data_args.use_elastic: 
+        retriever = ElasticRetrieval(data_args.elastic_index_name)
     # Query에 맞는 Passage들을 Retrieval 합니다.
-    retriever = BM25(tokenize_fn=tokenize_fn, data_path=data_path, context_path=context_path)
-    retriever.get_sparse_embedding()
+    else:
+        retriever = BM25(tokenize_fn=tokenize_fn, data_path=data_path, context_path=context_path)
+        retriever.get_sparse_embedding()
 
     if data_args.use_faiss:
         retriever.build_faiss(num_clusters=data_args.num_clusters)
