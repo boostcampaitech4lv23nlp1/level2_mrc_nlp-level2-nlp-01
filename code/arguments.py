@@ -92,3 +92,11 @@ class DataTrainingArguments:
     use_faiss: bool = field(
         default=False, metadata={"help": "Whether to build with faiss"}
     )
+
+    use_elastic: bool = field(
+        default = True, metadata={"help" : "Whether to build with elastic search"},
+    )
+    
+    elastic_index_name: str = field(
+        default = "origin-wiki", metadata= {"help" : "Define the elastic search name"},
+    )
