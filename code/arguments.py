@@ -9,15 +9,9 @@ class ModelArguments:
     """
 
     model_name_or_path: str = field(
-        default="klue/roberta-large",
+        default="klue/roberta-large", #'klue/bert-base
         metadata={
             "help": "Path to pretrained model or model identifier from huggingface.co/models"
-        },
-    )
-    tokenizer_name: Optional[str] = field(
-        default="klue/roberta-large",
-        metadata={
-            "help": "Pretrained tokenizer name or path if not the same as model_name"
         },
     )
     config_name: Optional[str] = field(
@@ -26,7 +20,12 @@ class ModelArguments:
             "help": "Pretrained config name or path if not the same as model_name"
         },
     )
-    
+    tokenizer_name: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Pretrained tokenizer name or path if not the same as model_name"
+        },
+    )
 
 
 @dataclass
@@ -40,7 +39,7 @@ class DataTrainingArguments:
         metadata={"help": "The name of the dataset to use."},
     )
     overwrite_cache: bool = field(
-        default=False,
+        default=True,
         metadata={"help": "Overwrite the cached training and evaluation sets"},
     )
     preprocessing_num_workers: Optional[int] = field(
@@ -83,24 +82,16 @@ class DataTrainingArguments:
         default=64, metadata={"help": "Define how many clusters to use for faiss."}
     )
     top_k_retrieval: int = field(
-        default=10,
+        default=100,
         metadata={
-            "help": "Define how many top-k passages to retrieve based on similarity."
-        },
+            "help": "Define how many top-k passages to retrieve based on similarity."},
     )
     use_faiss: bool = field(
-        default=False, metadata={"help": "Whether to build with faiss"}
+        default=False, metadata={"help": "Whether to build with faiss"},
     )
-    
-
-@dataclass
-class GenerationArguments:
-    """
-    Arguments for training and eval.
-    """
-    generation_mode: bool = field(
-        default=True, metadata={"help": "Whether to use generation based MRC"}
+    use_elastic: bool = field(
+        default = True, metadata={"help" : "Whether to build with elastic search"},
     )
-    num_beams: int = field(
-        default=2, metadata={"help" : "beam size to generate answer"}
+    elastic_index_name: str = field(
+        default = "origin-wiki", metadata= {"help" : "Define the elastic search name"},
     )
