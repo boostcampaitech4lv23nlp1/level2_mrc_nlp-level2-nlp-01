@@ -1,193 +1,143 @@
-import torch
+import logging
+import os
+from typing import NoReturn
+import wandb
+import shutil
 
+from omegaconf import OmegaConf
+from arguments import DataTrainingArguments, ModelArguments
+from datasets import Dataset, DatasetDict, load_from_disk, load_metric, load_dataset
+from trainer_qa import QuestionAnsweringTrainer
 from transformers import (
     AutoTokenizer,
-    AutoConfig,
-    AutoModelForMaskedLM,
-    Trainer,
-    TrainingArguments,
     DataCollatorForLanguageModeling,
-    DataCollatorForWholeWordMask,
-    HfArgumentParser,
-    set_seed,
+    AutoModelForMaskedLM,
+    TrainingArguments,
+    Trainer,
 )
-from datasets import load_from_disk, load_dataset
-from omegaconf import OmegaConf
+from utils_qa import check_no_error, postprocess_qa_predictions
+from preprocess import prepare_train_features, prepare_validation_features
 
-from arguments import ModelArguments
+import nltk
+nltk.download('punkt')
 
-class MLM_Dataset:
-    def __init__(
-        self,
-        queries,
-        tokenizer,
-        model_name = 'klue/roberta-large',
-        max_length = 32
-    ):
-        self.queries = queries
-        self.tokenizer = tokenizer
-        self.model_name = model_name
-        self.max_length = max_length
-
-    def __getitem__(self, item):
-        if isinstance(self.queries[item], str):
-            self.queries[item] = self.tokenizer(self.queries[item],
-                                                add_special_tokens = True,
-                                                truncation = True,
-                                                padding = 'max_length',
-                                                max_length = self.max_length,
-                                                return_token_type_ids = False if 'klue/roberta' in self.model_name else None,
-                                                return_special_tokens_mask = True
-                                                )
-        return self.queries[item]
-
-    def __len__(self):
-        return len(self.queries)
+logger = logging.getLogger(__name__)
 
 
 def main(cfg):
-    output_dir = cfg.train.dir.output_dir
-    dataset_dir = cfg.train.dir.data_dir
+    if cfg.train.path.delete_exist_output is True:
+        if os.path.exists(cfg.train.path.output_dir):
+            flag = input(f"정말 {cfg.train.path.output_dir} 내의 모든 파일을 삭제하시겠습니까? (yes) >> ")
+            if flag == 'yes':
+                shutil.rmtree(cfg.train.path.output_dir)
+            else:
+                print('기존 output을 삭제하지 않습니다.')
+    '''
+        TODO 1: 데이터셋을 불러옵니다.
+            1) 기존 데이터셋
+            2) korquad 데이터셋
+    '''
+    datasets = load_dataset('squad_kor_v1')
+    # datasets = load_from_disk(cfg.train.path.dataset_name)
+    print(datasets)
 
-    do_eval = cfg.train.stage.do_eval
-    save_steps = cfg.train.model.save_steps
-    eval_steps = cfg.train.model.eval_steps
-    logging_steps = cfg.train.model.logging_steps
-    save_total_limit = cfg.train.model.save_total_limit
+    column_names = datasets['train'].column_names
+    context_column_name = "context" if "context" in column_names else column_names[1]
+    question_column_name = "question" if "question" in column_names else column_names[0]
 
-    model_name = cfg.train.model.model_name
-    num_train_epochs = cfg.train.model.num_train_epochs
-    learning_rate = cfg.train.model.learning_rate
-    per_device_train_batch_size = cfg.train.model.per_device_train_batch_size
-    per_device_eval_batch_size = cfg.train.model.per_device_eval_batch_size
-    weight_decay = cfg.train.model.weight_decay
-    warmup_steps = cfg.train.model.warmup_steps
-    max_seq_length = cfg.train.model.max_seq_length
-    masking_probability = cfg.train.model.masking_probability
-    do_whole_word_mask = cfg.train.model.do_whole_word_mask
-
-    parser = HfArgumentParser(
-        (
-            ModelArguments,
-            TrainingArguments
-        )
+    tokenizer = AutoTokenizer.from_pretrained(
+        pretrained_model_name_or_path='klue/roberta-large',
+        use_fast=True,
     )
-    model_args, training_args = parser.parse_args_into_dataclasses(['--output_dir', output_dir])
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    set_seed(77)
-
-    # load_model
-    config_ = AutoConfig.from_pretrained(model_name)
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForMaskedLM.from_pretrained(model_name, config=config_)
-
-    '''
-        load dataset
-            squad_kor_v1: Dataset Card for KorQuAD v1.0
-    '''
-    dataset = load_dataset('squad_kor_v1')
-    MLM_train, MLM_eval = dataset['train'], dataset['validation']
     
-    # TODO: github issue (#4)
-    if do_eval:
-        train_dataset = dataset['train'][:]['question']
-        eval_dataset = dataset['validation'][:]['question']
-        MLM_train = MLM_Dataset(
-            queries = train_dataset,
-            tokenizer = tokenizer,
-            model_name = model_name,
-            max_length = max_seq_length
-        )
-        MLM_eval = MLM_Dataset(
-            queries = eval_dataset,
-            tokenizer = tokenizer,
-            model_name = model_name,
-            max_length = max_seq_length
-        )
-    else:
-        train_dataset = dataset['train'][:]['question'] + dataset['validation'][:]['question']
-        MLM_train = MLM_Dataset(
-            queries = train_dataset,
-            tokenizer = tokenizer,
-            model_name = model_name,
-            max_length = max_seq_length
-        )
-    
-    # load data collator
-    if do_whole_word_mask:
-        data_collator = DataCollatorForWholeWordMask(
-            tokenizer = tokenizer,
-            mlm = True,
-            mlm_probability = masking_probability
-        )
-    else:
-        data_collator = DataCollatorForLanguageModeling(
-            tokenizer = tokenizer,
-            mlm = True,
-            mlm_probability = masking_probability
-        )
+    tokenizer.pad_token = tokenizer.eos_token
+    data_collator = DataCollatorForLanguageModeling(
+        tokenizer=tokenizer,
+        mlm_probability=0.15
+    )
 
-    # training args
-    training_args.output_dir=f"{output_dir}/" + model_name.replace('/', '_')
-    training_args.logging_dir = f"{training_args.output_dir}/logs"
-    training_args.num_train_epochs = num_train_epochs
-    training_args.learning_rate = learning_rate
-    training_args.evaluation_strategy="steps" if MLM_eval is not None else "no"
-    training_args.per_device_train_batch_size = per_device_train_batch_size
-    training_args.per_device_eval_batch_size = per_device_eval_batch_size
-    training_args.eval_steps = eval_steps
-    training_args.save_steps = save_steps
-    training_args.logging_steps = logging_steps
-    training_args.warmup_steps = warmup_steps
-    training_args.weight_decay = weight_decay
-    training_args.load_best_model_at_end=True if MLM_eval is not None else False
-    training_args.save_total_limit = save_total_limit
+    # ------------------------ preprocessing ------------------------ #
+    def preprocessing(x):
+        tokenized_data = tokenizer(
+            x[question_column_name],
+            x[context_column_name],
+            truncation='only_second',
+            max_length=384,
+            stride=128,
+            return_token_type_ids=False, # roberta모델을 사용할 경우 False, bert를 사용할 경우 True로 표기해야합니다.
+            padding=False
+        )
+        return tokenized_data
+
+    train_datasets = datasets['train']
+    train_datasets = train_datasets.map(
+        function=preprocessing,
+        batched=True,
+        remove_columns=column_names
+    )
+    
+    validation_datasets = datasets['validation']
+    validation_datasets = validation_datasets.map(
+        function=preprocessing,
+        batched=True,
+        remove_columns=column_names
+    )
+    # -------------------------------------------------------------- #
+
+    model = AutoModelForMaskedLM.from_pretrained('klue/roberta-large')
+
+    # ------------------------------------------------------------------------------------ # 
+
+    try:
+        wandb.login(key='4c0a01eaa2bd589d64c5297c5bc806182d126350')
+    except:
+        anony = "must"
+        print('If you want to use your W&B account, go to Add-ons -> Secrets and provide your W&B access token. Use the Label name as wandb_api. \nGet your W&B access token from here: https://wandb.ai/authorize')
+
+    wandb.init(project="pretraining", name= "korquad-training")
 
     training_args = TrainingArguments(
-        output_dir = training_args.output_dir,
-        logging_dir = training_args.logging_dir,
-        num_train_epochs = training_args.num_train_epochs,
-        learning_rate = training_args.learning_rate,
-        evaluation_strategy = training_args.evaluation_strategy,
-        per_device_train_batch_size = training_args.per_device_train_batch_size,
-        per_device_eval_batch_size = training_args.per_device_eval_batch_size,
-        eval_steps = training_args.eval_steps,
-        save_steps = training_args.save_steps,
-        logging_steps = training_args.logging_steps,
-        warmup_steps = training_args.warmup_steps,
-        weight_decay = training_args.weight_decay,
-        load_best_model_at_end = training_args.load_best_model_at_end,
-        save_total_limit = training_args.save_total_limit,
-        run_name = model_name
+        output_dir=cfg.train.path.output_dir,
+        evaluation_strategy='epoch',
+        learning_rate=2e-5,
+        num_train_epochs=cfg.train.model.num_train_epochs,
+        weight_decay=0.01,
+        save_strategy='epoch',
+        report_to='wandb'
     )
-    print(training_args)
 
-    # model to device
-    model.to(device)
-
-    # trainer 
     trainer = Trainer(
         model=model,
         args=training_args,
+        train_dataset=train_datasets,
+        eval_dataset=validation_datasets,
         data_collator=data_collator,
-        train_dataset=MLM_train,
-        eval_dataset=MLM_eval,
     )
 
-    # train
-    print("Start Training !!!")
-    trainer.train()
+    print('pretraining start')
+    train_result = trainer.train(
+        resume_from_checkpoint=None
+    )
 
-    # model save
-    print("Saving Training Result !!!")
+    print('save model')
     trainer.save_model()
 
-    # finish training
-    print("Finish Training !!!")
+    metrics = train_result.metrics
+    metrics['train_samples'] = len(train_datasets)
 
+    tokenizer.save_pretrained(cfg.train.path.output_dir)
 
+    trainer.log_metrics('train', metrics)
+    trainer.save_metrics('train', metrics)
+    trainer.save_state()
+    
+    trainer.state.save_to_json(
+        os.path.join(cfg.train.path.output_dir, 'trainer_state.json')
+    )
+    
 if __name__ == "__main__":
     # configuation
-    cfg = OmegaConf.load(f'/opt/ml/level2_mrc_nlp-level2-nlp-01/code/conf/MLM/base_config.yaml')
+    config_name = 'base_config'
+    cfg = OmegaConf.load(f'./conf/MLM/{config_name}.yaml')
 
     main(cfg)
