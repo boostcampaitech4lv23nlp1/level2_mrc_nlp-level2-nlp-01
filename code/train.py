@@ -23,6 +23,8 @@ from transformers import (
     T5TokenizerFast, 
     T5ForConditionalGeneration
 )
+import numpy as np
+
 from utils_qa import check_no_error, postprocess_qa_predictions
 from preprocess import prepare_train_features, prepare_validation_features
 
@@ -336,19 +338,12 @@ def run_mrc_based_generation(
     else:
         column_names = datasets["validation"].column_names
 
-    question_column_name = "question" if "question" in column_names else column_names[0]
-    context_column_name = "context" if "context" in column_names else column_names[1]
-    answer_column_name = "answers" if "answers" in column_names else column_names[2]
-
-    # Padding에 대한 옵션을 설정합니다.
-    # (question|context) 혹은 (context|question)로 세팅 가능합니다.
-    pad_on_right = tokenizer.padding_side == "right"
-
     # 오류가 있는지 확인합니다.
-    last_checkpoint, max_seq_length = check_no_error(
+    last_checkpoint, _ = check_no_error(
         data_args, training_args, datasets, tokenizer
     )
 
+    # 모델 입력에 사용할 전처리 함수
     def preprocess_function(examples):
         inputs = [f"question: {q} </s> context: {c} </s>" for q, c in zip(examples["question"], examples["context"])]
         targets = [f'{a["text"][0]} </s>' for a in examples['answers']]
@@ -358,7 +353,6 @@ def run_mrc_based_generation(
             padding=cfg.reader.generation.padding,
             truncation=True
         )
-
         # targets(label)을 위해 tokenizer 설정
         labels = tokenizer(
             text_target=targets,
@@ -386,9 +380,6 @@ def run_mrc_based_generation(
         )
     if training_args.do_eval:
         eval_dataset = datasets["validation"]
-        
-
-        # Validation Feature 생성
         eval_dataset = eval_dataset.map(
             preprocess_function,
             batched=True,
@@ -495,13 +486,14 @@ def run_mrc_based_generation(
         trainer.log_metrics("test", metrics)
         trainer.save_metrics("test", metrics)
 
-    # validation answer check
+    # validation 정답 확인을 위한 함수
     def generarate_answer(sample):
         inputs = f'question: {sample["question"]} </s> context: {sample["context"]} </s>'
         print(inputs.split('context:')[0])
         print("context: "+ inputs.split('context:')[1])
         sample = tokenizer(inputs, max_length=cfg.reader.generation.max_source_length, padding=cfg.reader.generation.padding, truncation=True, return_tensors='pt')
         sample = sample.to("cuda:0")
+        # sample = sample.to('cpu')
         outputs = model.generate(**sample, max_length=cfg.reader.generation.max_target_length, num_beams=cfg.reader.generation.num_beams)
         pred = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
@@ -509,7 +501,7 @@ def run_mrc_based_generation(
         answer = 'answer :' + pred
         return answer
 
-    import numpy as np
+    
     np.random.seed(seed=7777) 
 
     for i in np.random.randint(0, len(datasets["validation"]), 5):
@@ -523,3 +515,5 @@ if __name__ == "__main__":
     cfg = OmegaConf.load(f'./conf/reader/{config_name}.yaml')
 
     main(cfg)
+
+
