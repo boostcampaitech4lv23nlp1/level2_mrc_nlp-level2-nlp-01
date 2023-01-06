@@ -30,6 +30,9 @@ import numpy as np
 from utils_qa import check_no_error, postprocess_qa_predictions
 from preprocess import prepare_train_features, prepare_validation_features
 
+import nltk
+nltk.download('punkt')
+
 logger = logging.getLogger(__name__)
 
 
