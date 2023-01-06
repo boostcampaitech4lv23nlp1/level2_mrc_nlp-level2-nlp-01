@@ -162,10 +162,10 @@ def main(cfg, sweep_cfg):
     # do_train mrc model 혹은 do_eval mrc model
     if cfg.reader.mode.generation and (training_args.do_train or training_args.do_eval):
         print('Generation based MRC training')
-        run_mrc_based_generation(data_args, training_args, model_args, datasets, tokenizer, model)
+        run_mrc_based_generation(data_args, training_args, model_args, datasets, tokenizer, model, sweep_cfg)
     elif training_args.do_train or training_args.do_eval:
         print('Extraction based MRC training')
-        run_mrc_based_extraction(data_args, training_args, model_args, datasets, tokenizer, model)
+        run_mrc_based_extraction(data_args, training_args, model_args, datasets, tokenizer, model, sweep_cfg)
 
 
 def run_mrc_based_extraction(
