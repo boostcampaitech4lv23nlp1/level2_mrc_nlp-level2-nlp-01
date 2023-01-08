@@ -18,6 +18,8 @@ Question-Answering task와 관련된 'Trainer'의 subclass 코드 입니다.
 
 from transformers import Trainer, is_datasets_available, is_torch_tpu_available
 from transformers.trainer_utils import PredictionOutput
+from typing import Optional, Union, Dict, List, Any
+import torch.nn as nn
 
 if is_datasets_available():
     import datasets
@@ -32,6 +34,30 @@ class QuestionAnsweringTrainer(Trainer):
         super().__init__(*args, **kwargs)
         self.eval_examples = eval_examples
         self.post_process_function = post_process_function
+
+        self.label_smoothing_factor = kwargs['args'].label_smoothing_factor
+
+    def compute_loss(self, model, inputs, return_outputs=False):
+        start_positions = inputs.get('start_positions')
+        end_positions = inputs.get('end_positions')
+
+        # forward pass
+        outputs = model(**inputs)
+        
+        start_logits = outputs.get('start_logits')
+        end_logits = outputs.get('end_logits')
+        ignored_index = start_logits.size(-1)
+
+        # compute loss / cross entropy loss
+        criterion = nn.CrossEntropyLoss(
+            ignore_index=ignored_index, 
+            label_smoothing=self.label_smoothing_factor
+        )
+        start_loss = criterion(start_logits, start_positions)
+        end_loss = criterion(end_logits, end_positions)
+        loss = (start_loss + end_loss) / 2
+
+        return loss
 
     def evaluate(self, eval_dataset=None, eval_examples=None, ignore_keys=None):
         eval_dataset = self.eval_dataset if eval_dataset is None else eval_dataset

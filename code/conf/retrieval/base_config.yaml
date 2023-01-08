@@ -1,0 +1,12 @@
+
+path:
+    dataset_name: ../data/train_dataset/
+    data_path: ../data
+
+model:
+    model_name_or_path: 'klue/roberta-large'
+    context_path: wikipedia_documents.json
+    use_faiss: False
+    bm25: True
+
+    

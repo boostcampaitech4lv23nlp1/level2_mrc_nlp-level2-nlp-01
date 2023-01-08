@@ -9,10 +9,16 @@ class ModelArguments:
     """
 
     model_name_or_path: str = field(
-        # default="klue/bert-base",
-        default="paust/pko-t5-small",
+        # default="paust/pko-t5-small",
+        default="klue/roberta-large",
         metadata={
             "help": "Path to pretrained model or model identifier from huggingface.co/models"
+        },
+    )
+    tokenizer_name: Optional[str] = field(
+        default="klue/roberta-large",
+        metadata={
+            "help": "Pretrained tokenizer name or path if not the same as model_name"
         },
     )
     config_name: Optional[str] = field(
@@ -21,12 +27,7 @@ class ModelArguments:
             "help": "Pretrained config name or path if not the same as model_name"
         },
     )
-    tokenizer_name: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "Pretrained tokenizer name or path if not the same as model_name"
-        },
-    )
+    
 
 
 @dataclass
@@ -91,4 +92,11 @@ class DataTrainingArguments:
     use_faiss: bool = field(
         default=False, metadata={"help": "Whether to build with faiss"}
     )
+
+    use_elastic: bool = field(
+        default = True, metadata={"help" : "Whether to build with elastic search"},
+    )
     
+    elastic_index_name: str = field(
+        default = "origin-wiki", metadata= {"help" : "Define the elastic search name"},
+    )

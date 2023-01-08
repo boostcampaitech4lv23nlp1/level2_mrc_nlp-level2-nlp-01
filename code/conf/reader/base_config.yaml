@@ -1,0 +1,42 @@
+train:
+    path:
+        output_dir: /opt/ml/input/models/pko-t5-base-source_len_768_rouge/
+        dataset_name: /opt/ml/input/data/train_dataset
+        delete_exist_output: True
+
+    stage:
+        do_train: True
+        do_eval: True
+        overwrite_cache: True
+
+    model:
+        model_name_or_path: 'klue/roberta-large'
+        tokenizer_name: 'klue/roberta-large'
+        label_smoothing_factor: 0.0
+        num_train_epochs: 3
+        per_device_train_batch_size: 8
+        learning_rate: 5e-5
+        weight_decay: 0.01 # 0.01, 0.001, 0.005
+
+test:
+    path:
+        output_dir: /opt/ml/input/models/pko-t5-base-source_len_768_rouge/
+        dataset_name: /opt/ml/input/data/test_dataset
+        model_name_or_path: /opt/ml/input/models/pko-t5-base-source_len_768_rouge/
+        delete_exist_output: False
+
+    stage:
+        do_train: False
+        do_eval: False
+        do_predict: True
+
+reader:
+    mode:
+      generation: True
+    generation:
+      num_beams: 2
+      max_source_length: 768
+      max_target_length: 32
+      padding: "max_length"
+    model:
+        model_name_or_path: ./models/train_dataset/  
