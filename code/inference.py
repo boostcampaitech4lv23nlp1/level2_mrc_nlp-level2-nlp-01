@@ -1,6 +1,5 @@
 """
 Open-Domain Question Answering 을 수행하는 inference 코드 입니다.
-
 대부분의 로직은 train.py 와 비슷하나 retrieval, predict 부분이 추가되어 있습니다.
 """
 
@@ -8,8 +7,14 @@ Open-Domain Question Answering 을 수행하는 inference 코드 입니다.
 import logging
 import sys
 from typing import Callable, Dict, List, NoReturn, Tuple
+import json
+import collections
 
+import pickle
 import numpy as np
+import nltk
+from tqdm import tqdm
+from elastic_retrieval import ElasticRetrieval
 from arguments import DataTrainingArguments, ModelArguments
 from datasets import (
     Dataset,
@@ -20,33 +25,58 @@ from datasets import (
     load_from_disk,
     load_metric,
 )
-from retrieval import SparseRetrieval
+from retrieval import SparseRetrieval, BM25
+from omegaconf import OmegaConf
 from trainer_qa import QuestionAnsweringTrainer
 from transformers import (
     AutoConfig,
     AutoModelForQuestionAnswering,
     AutoTokenizer,
+    DataCollatorForSeq2Seq, # 다른 시퀀스 length을 가진 input들을 합쳐줘서 gpu에서 pair computing이 쉽게 만들어 준다.
+    Seq2SeqTrainer, # 
+    Seq2SeqTrainingArguments, #
     DataCollatorWithPadding,
     EvalPrediction,
     HfArgumentParser,
     TrainingArguments,
     set_seed,
+    T5TokenizerFast, 
+    T5ForConditionalGeneration
 )
 from utils_qa import check_no_error, postprocess_qa_predictions
+from preprocess import prepare_validation_features
 
 logger = logging.getLogger(__name__)
 
 
-def main():
+def main(cfg):
+    output_dir = cfg.test.path.output_dir
+    dataset_name = cfg.test.path.dataset_name
+
+    do_train = cfg.test.stage.do_train
+    do_eval = cfg.test.stage.do_eval
+    do_predict = cfg.test.stage.do_predict
+
+    model_name_or_path = cfg.test.model.model_name_or_path
+
     # 가능한 arguments 들은 ./arguments.py 나 transformer package 안의 src/transformers/training_args.py 에서 확인 가능합니다.
     # --help flag 를 실행시켜서 확인할 수 도 있습니다.
-
     parser = HfArgumentParser(
         (ModelArguments, DataTrainingArguments, TrainingArguments)
     )
-    model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    model_args, data_args, training_args = parser.parse_args_into_dataclasses(['--output_dir', output_dir])
 
-    training_args.do_train = True
+    # ------------------------ hyper parameter 설정 ------------------------ #
+    data_args.dataset_name = dataset_name
+    model_args.model_name_or_path = model_name_or_path
+
+    training_args.do_train = do_train
+    training_args.do_eval = do_eval
+    training_args.do_predict = do_predict
+
+    
+    # ----------------------------------------------------------------------- #
+
 
     print(f"model is from {model_args.model_name_or_path}")
     print(f"data is from {data_args.dataset_name}")
@@ -74,17 +104,33 @@ def main():
         if model_args.config_name
         else model_args.model_name_or_path,
     )
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_args.tokenizer_name
-        if model_args.tokenizer_name
-        else model_args.model_name_or_path,
-        use_fast=True,
-    )
-    model = AutoModelForQuestionAnswering.from_pretrained(
-        model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
-        config=config,
-    )
+    
+
+    if cfg.reader.mode.generation==False:
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_args.tokenizer_name
+            if model_args.tokenizer_name
+            else model_args.model_name_or_path,
+            use_fast=True,
+                )
+        model = AutoModelForQuestionAnswering.from_pretrained(
+            model_args.model_name_or_path,
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=config,
+        )
+    else:
+        tokenizer = T5TokenizerFast.from_pretrained(
+            model_args.tokenizer_name
+            if model_args.tokenizer_name
+            else model_args.model_name_or_path,
+            use_fast=True,
+                )
+        model = T5ForConditionalGeneration.from_pretrained(
+            model_args.model_name_or_path,
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=config,
+        )
+
 
     # True일 경우 : run passage retrieval
     if data_args.eval_retrieval:
@@ -93,8 +139,12 @@ def main():
         )
 
     # eval or predict mrc model
-    if training_args.do_eval or training_args.do_predict:
-        run_mrc(data_args, training_args, model_args, datasets, tokenizer, model)
+    if cfg.reader.mode.generation and (training_args.do_eval or training_args.do_predict):
+        print('Generation based MRC evaluation')
+        run_mrc_based_generation(data_args, training_args, model_args, datasets, tokenizer, model)
+    elif training_args.do_eval or training_args.do_predict:
+        print('Extraction based MRC evaluation')
+        run_mrc_based_extraction(data_args, training_args, model_args, datasets, tokenizer, model)
 
 
 def run_sparse_retrieval(
@@ -102,15 +152,16 @@ def run_sparse_retrieval(
     datasets: DatasetDict,
     training_args: TrainingArguments,
     data_args: DataTrainingArguments,
-    data_path: str = "../data",
+    data_path: str = "/opt/ml/input/data/",
     context_path: str = "wikipedia_documents.json",
-) -> DatasetDict:
+    ) -> DatasetDict:
 
+    if data_args.use_elastic: 
+        retriever = ElasticRetrieval(data_args.elastic_index_name)
     # Query에 맞는 Passage들을 Retrieval 합니다.
-    retriever = SparseRetrieval(
-        tokenize_fn=tokenize_fn, data_path=data_path, context_path=context_path
-    )
-    retriever.get_sparse_embedding()
+    else:
+        retriever = BM25(tokenize_fn=tokenize_fn, data_path=data_path, context_path=context_path)
+        retriever.get_sparse_embedding()
 
     if data_args.use_faiss:
         retriever.build_faiss(num_clusters=data_args.num_clusters)
@@ -151,14 +202,14 @@ def run_sparse_retrieval(
     return datasets
 
 
-def run_mrc(
+def run_mrc_based_extraction(
     data_args: DataTrainingArguments,
     training_args: TrainingArguments,
     model_args: ModelArguments,
     datasets: DatasetDict,
     tokenizer,
     model,
-) -> NoReturn:
+    ) -> NoReturn:
 
     # eval 혹은 prediction에서만 사용함
     column_names = datasets["validation"].column_names
@@ -176,50 +227,14 @@ def run_mrc(
         data_args, training_args, datasets, tokenizer
     )
 
-    # Validation preprocessing / 전처리를 진행합니다.
-    def prepare_validation_features(examples):
-        # truncation과 padding(length가 짧을때만)을 통해 toknization을 진행하며, stride를 이용하여 overflow를 유지합니다.
-        # 각 example들은 이전의 context와 조금씩 겹치게됩니다.
-        tokenized_examples = tokenizer(
-            examples[question_column_name if pad_on_right else context_column_name],
-            examples[context_column_name if pad_on_right else question_column_name],
-            truncation="only_second" if pad_on_right else "only_first",
-            max_length=max_seq_length,
-            stride=data_args.doc_stride,
-            return_overflowing_tokens=True,
-            return_offsets_mapping=True,
-            # return_token_type_ids=False, # roberta모델을 사용할 경우 False, bert를 사용할 경우 True로 표기해야합니다.
-            padding="max_length" if data_args.pad_to_max_length else False,
-        )
-
-        # 길이가 긴 context가 등장할 경우 truncate를 진행해야하므로, 해당 데이터셋을 찾을 수 있도록 mapping 가능한 값이 필요합니다.
-        sample_mapping = tokenized_examples.pop("overflow_to_sample_mapping")
-
-        # evaluation을 위해, prediction을 context의 substring으로 변환해야합니다.
-        # corresponding example_id를 유지하고 offset mappings을 저장해야합니다.
-        tokenized_examples["example_id"] = []
-
-        for i in range(len(tokenized_examples["input_ids"])):
-            # sequence id를 설정합니다 (to know what is the context and what is the question).
-            sequence_ids = tokenized_examples.sequence_ids(i)
-            context_index = 1 if pad_on_right else 0
-
-            # 하나의 example이 여러개의 span을 가질 수 있습니다.
-            sample_index = sample_mapping[i]
-            tokenized_examples["example_id"].append(examples["id"][sample_index])
-
-            # context의 일부가 아닌 offset_mapping을 None으로 설정하여 토큰 위치가 컨텍스트의 일부인지 여부를 쉽게 판별할 수 있습니다.
-            tokenized_examples["offset_mapping"][i] = [
-                (o if sequence_ids[k] == context_index else None)
-                for k, o in enumerate(tokenized_examples["offset_mapping"][i])
-            ]
-        return tokenized_examples
-
     eval_dataset = datasets["validation"]
 
     # Validation Feature 생성
     eval_dataset = eval_dataset.map(
-        prepare_validation_features,
+        function=lambda x: prepare_validation_features(x, tokenizer=tokenizer, pad_on_right=pad_on_right,
+                                                    context_column_name=context_column_name, question_column_name=question_column_name,
+                                                    answer_column_name=answer_column_name,
+                                                    data_args=data_args, max_seq_length=max_seq_length),
         batched=True,
         num_proc=data_args.preprocessing_num_workers,
         remove_columns=column_names,
@@ -275,8 +290,8 @@ def run_mrc(
     trainer = QuestionAnsweringTrainer(
         model=model,
         args=training_args,
-        train_dataset=None,
-        eval_dataset=eval_dataset,
+        train_dataset=train_dataset if training_args.do_train else None,
+        eval_dataset=eval_dataset if training_args.do_eval else None,
         eval_examples=datasets["validation"],
         tokenizer=tokenizer,
         data_collator=data_collator,
@@ -304,6 +319,164 @@ def run_mrc(
         trainer.log_metrics("test", metrics)
         trainer.save_metrics("test", metrics)
 
+def run_mrc_based_generation(
+    data_args: DataTrainingArguments,
+    training_args: Seq2SeqTrainingArguments,
+    model_args: ModelArguments,
+    datasets: DatasetDict,
+    tokenizer,
+    model,
+    ) -> NoReturn:
+
+    # eval 혹은 prediction에서만 사용함
+    column_names = datasets["validation"].column_names
+
+    question_column_name = "question" if "question" in column_names else column_names[0]
+    context_column_name = "context" if "context" in column_names else column_names[1]
+    answer_column_name = "answers" if "answers" in column_names else column_names[2]
+
+    # Padding에 대한 옵션을 설정합니다.
+    # (question|context) 혹은 (context|question)로 세팅 가능합니다.
+    pad_on_right = tokenizer.padding_side == "right"
+
+    # 오류가 있는지 확인합니다.
+    last_checkpoint, max_seq_length = check_no_error(
+        data_args, training_args, datasets, tokenizer
+    )
+
+    eval_dataset = datasets["validation"]
+
+    # print(eval_dataset)
+
+    # preprocessing
+    def preprocess_function(examples):
+
+        print(len(examples['id']))
+        inputs = [f"question: {q}  context: {c} </s>" for q, c in zip(examples["question"], examples["context"])]
+
+        model_inputs = tokenizer(
+            inputs,
+            max_length=cfg.reader.generation.max_source_length,
+            padding=cfg.reader.generation.padding,
+            truncation=True
+        )
+
+        model_inputs["example_id"] = []
+        for i in range(len(examples['id'])): # 600 (dataset length)
+            model_inputs["example_id"].append(examples["id"][i])
+        return model_inputs
+
+    # Validation Feature 생성
+    eval_dataset = eval_dataset.map(
+            preprocess_function,
+            batched=True,
+            num_proc=data_args.preprocessing_num_workers,
+            remove_columns=column_names,
+            load_from_cache_file=not data_args.overwrite_cache,
+            )
+
+    label_pad_token_id = tokenizer.pad_token_id
+
+    # Data collator
+    data_collator = DataCollatorForSeq2Seq(
+        tokenizer,
+        model=model,
+        label_pad_token_id=label_pad_token_id,
+        pad_to_multiple_of=None,
+    )
+
+    metric = load_metric("squad")
+
+    def postprocess_text(preds, labels):
+        """
+        postprocess는 nltk를 이용합니다.
+        Huggingface의 TemplateProcessing을 사용하여
+        정규표현식 기반으로 postprocess를 진행할 수 있지만
+        해당 미션에서는 nltk를 이용하여 간단한 후처리를 진행합니다
+        """
+
+        preds = [pred.strip() for pred in preds]
+        labels = [label.strip() for label in labels]
+            
+        preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in preds]
+        labels = ["\n".join(nltk.sent_tokenize(label)) for label in labels]
+
+        return preds, labels
+
+    def compute_metrics(eval_preds):
+        preds, labels = eval_preds
+        if isinstance(preds, tuple):
+            preds = preds[0]
+        
+        decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+        # decoded_labels은 rouge metric을 위한 것이며, f1/em을 구할 때 사용되지 않음
+        decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+
+        # 간단한 post-processing
+        decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
+
+        formatted_predictions = [{"id": ex["id"], "prediction_text": decoded_preds[i]} for i, ex in enumerate(datasets["validation"])]
+        references = [{"id": ex["id"], "answers": ex["answers"]} for ex in datasets["validation"]]
+
+        result = metric.compute(predictions=formatted_predictions, references=references)
+        return result
+
+    training_args.generation_max_length = cfg.reader.generation.max_target_length
+    training_args.generation_num_beams = cfg.reader.generation.num_beams
+    training_args.predict_with_generate=True
+
+    trainer = Seq2SeqTrainer(
+    model=model,
+    args=training_args,
+    train_dataset=train_dataset if training_args.do_train else None,
+    eval_dataset=eval_dataset if training_args.do_eval else None,
+    tokenizer=tokenizer,
+    data_collator=data_collator,
+    compute_metrics=compute_metrics,
+    )
+
+    def generarate_answer(org_dataset, eval_dataset):
+        all_predictions = collections.OrderedDict()
+        for i in tqdm(range(len(org_dataset))):
+            sample = org_dataset[i]    
+            inputs = f'question: {sample["question"]} </s> context: {sample["context"]} </s>'
+            sample = tokenizer(inputs, max_length=cfg.reader.generation.max_source_length, padding=cfg.reader.generation.padding, truncation=True, return_tensors='pt')
+            sample = sample.to("cuda:0")
+            outputs = model.generate(**sample, max_length=cfg.reader.generation.max_target_length, num_beams=cfg.reader.generation.num_beams)
+            pred = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            pred = "\n".join(nltk.sent_tokenize(pred))
+
+            all_predictions[org_dataset[i]['id']] = pred
+
+        assert len(all_predictions) == len(org_dataset)
+        return all_predictions
+
+
+    if training_args.do_predict:
+        logger.info("*** Predict ***")
+        
+        prediction_file = training_args.output_dir + '/prediction.json'
+
+        all_predictions = generarate_answer(datasets["validation"], eval_dataset)
+        
+
+        logger.info(f"Saving predictions to {prediction_file}.")
+        with open(prediction_file, "w", encoding="utf-8") as writer:
+            writer.write(
+                json.dumps(all_predictions, indent=4, ensure_ascii=False) + "\n"
+            )
+
+    if training_args.do_eval:
+        metrics = trainer.evaluate()
+        metrics["eval_samples"] = len(eval_dataset)
+
+        trainer.log_metrics("test", metrics)
+        trainer.save_metrics("test", metrics)
+
 
 if __name__ == "__main__":
-    main()
+    # configuation
+    config_name = 'roberta-large_config'
+    cfg = OmegaConf.load(f'./conf/reader/{config_name}.yaml')
+
+    main(cfg)
