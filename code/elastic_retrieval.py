@@ -1,13 +1,11 @@
 from email.policy import default
-import json
-import os
-import pickle
 import time
 from contextlib import contextmanager
-from typing import List, NoReturn, Optional, Tuple, Union
-import numpy as np
+from typing import List, Optional, Tuple, Union
 import pandas as pd
-from datasets import Dataset, concatenate_datasets, load_from_disk
+from datasets import Dataset
+from datasets import concatenate_datasets
+from datasets import load_from_disk
 from tqdm.auto import tqdm
 from elastic_setting import *
 
@@ -39,7 +37,7 @@ class ElasticRetrieval:
             return (doc_scores, [doc_indices[i] for i in range(topk)])
 
         elif isinstance(query_or_dataset, Dataset):
-            # Retrieve한 Passage를 pd.DataFrame으로 반환합니다.
+            # Retrieve한 Passage를 pd.DataFrame으로 반환
             total = []
             with timer("query exhaustive search"):
                 doc_scores, doc_indices, docs = self.get_relevant_doc_bulk(
@@ -53,13 +51,13 @@ class ElasticRetrieval:
                     retrieved_context.append(docs[idx][i]['_source']['document_text'])
 
                 tmp = {
-                    # Query와 해당 id를 반환합니다.
+                    # Query와 해당 id를 반환
                     "question": example["question"],
                     "id": example["id"],
                     "context": " ".join(retrieved_context),
                 }
                 if "context" in example.keys() and "answers" in example.keys():
-                    # validation 데이터를 사용하면 ground_truth context와 answer도 반환합니다.
+                    # validation 데이터를 사용하면 ground_truth context와 answer도 반환
                     tmp["original_context"] = example["context"]
                     tmp["answers"] = example["answers"]
                 total.append(tmp)
@@ -111,35 +109,22 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="")
     parser.add_argument("--dataset_name", default="../data/train_dataset", type=str, help="")
     parser.add_argument("--use_faiss", default=False, type=bool, help="")
-    parser.add_argument("--index_name", default="origin-wiki", type=str, help="테스트할 index name을 설정해주세요")
+    parser.add_argument("--index_name", default="origin-wiki", type=str, help="Define the test name")
 
     args = parser.parse_args()
 
-    # Test sparse
+    # train dev 를 합친 4192 개 질문에 대해 모두 테스트
     org_dataset = load_from_disk(args.dataset_name)
     full_ds = concatenate_datasets(
         [
             org_dataset["train"].flatten_indices(),
             org_dataset["validation"].flatten_indices(),
         ]
-    )  # train dev 를 합친 4192 개 질문에 대해 모두 테스트
+    )  
     print("*" * 40, "query dataset", "*" * 40)
     print(full_ds)
     print(len(org_dataset["train"]),len(org_dataset["validation"]))
-
-    # 테스트 데이터 full_ds에도 동일하게 전처리
-    post_context = [preprocess(text) for text in full_ds["context"]]
-    post_question = [preprocess(text) for text in full_ds["question"]]
-
-    # 기존의 전처리 이전 컬럼 삭제
-    full_ds = full_ds.remove_columns("context")
-    full_ds = full_ds.remove_columns("question")
-
-    # 동일한 이름의 컬럼에 전처리 이후 데이터 추가
-    full_ds = full_ds.add_column("context", post_context)
-    full_ds = full_ds.add_column("question", post_question)
-
-
+ 
     retriever = ElasticRetrieval(args.index_name)
     query = "대통령을 포함한 미국의 행정부 견제권을 갖는 국가 기관은?"
 
@@ -158,7 +143,7 @@ if __name__ == "__main__":
 
     else:
         with timer("bulk query by exhaustive search"):
-            df = retriever.retrieve(full_ds, topk=2)
+            df = retriever.retrieve(full_ds, topk=1)
             print(df)
             df["correct"] = [original_context in context for original_context,context in zip(df["original_context"],df["context"])]
             print(
