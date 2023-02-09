@@ -52,7 +52,8 @@ Elastic Search 설치 및 사용 설정
 <br><br><br>
 
 ## 하이퍼 파라미터 변경
-하이퍼 파라미터는 code/conf 폴더 내 yaml 파일을 통해 변경이 가능하다.
+
+### 하이퍼 파라미터는 code/conf 폴더 내 yaml 파일을 통해 변경이 가능하다.
 
 ```
 |-- code
@@ -75,7 +76,7 @@ Elastic Search 설치 및 사용 설정
 
 <br><br>
 
-### 아래 파일은 Reader 모델을 학습하기 위한 파라미터 설정이다.
+#### 아래 파일은 Reader 모델을 학습하기 위한 파라미터 설정이다.
 
 ```
 # code/conf/reader/roberta-large_config.yaml
@@ -121,7 +122,7 @@ test:
 
 <br><br>
 
-### 아래 파일은 Retriever 모델을 학습하기 위한 파라미터 설정이다.
+#### 아래 파일은 Retriever 모델을 학습하기 위한 파라미터 설정이다.
 
 ```
 # code/conf/retrieval/base_config.yaml
@@ -140,7 +141,7 @@ model:
 
 <br><br>
 
-### 아래 파일은 Retriever 모델에서 활용하는 파라미터 설정
+#### 아래 파일은 Retriever 모델에서 활용하는 파라미터 설정
 
 ```
 # code/arguments.py
@@ -181,7 +182,7 @@ class DataTrainingArguments:
 <br><br>
 
 
-### 아래 파일은 Reader 모델의 하이퍼 파라미터 변경 실험을 위한 설정이다.
+#### 아래 파일은 Reader 모델의 하이퍼 파라미터 변경 실험을 위한 설정이다.
 
 ```
 # code/conf/wandb_sweep/wandb_sweep.yaml
