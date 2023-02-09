@@ -33,7 +33,6 @@ nltk.download('punkt')
 
 logger = logging.getLogger(__name__)
 
-<<<<<<< HEAD
 
 def main(cfg):
     output_dir = cfg.train.path.output_dir
@@ -54,10 +53,6 @@ def main(cfg):
     weight_decay = cfg.train.model.weight_decay
     fp16 = cfg.train.model.fp16
 
-=======
-# main
-def main():
->>>>>>> main
     # 가능한 arguments 들은 ./arguments.py 나 transformer package 안의 src/transformers/training_args.py 에서 확인 가능합니다.
     # --help flag 를 실행시켜서 확인할 수 도 있습니다.
     parser = HfArgumentParser(
